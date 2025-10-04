@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthGuard } from "@/components/AuthGuard";
 import Index from "./pages/Index";
 import TeamDetail from "./pages/TeamDetail";
+import Leagues from "./pages/Leagues";
 import MatchVotes from "./pages/MatchVotes";
 import NotFound from "./pages/NotFound";
 
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/teams/:teamId" element={<TeamDetail />} />
             <Route path="/match/:matchId/votes" element={<MatchVotes />} />
+            <Route path="/leagues" element={<Leagues />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

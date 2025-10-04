@@ -17,8 +17,10 @@ interface PlayerCardProps {
 
 const positionColors = {
   FWD: "bg-secondary",
+  KFWD: "bg-orange-600",
   MID: "bg-primary",
   DEF: "bg-accent",
+  KDEF: "bg-blue-600",
   RUC: "bg-purple-600",
 };
 

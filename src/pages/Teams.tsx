@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { TeamCard } from "@/components/TeamCard";
 import { AddTeamDialog } from "@/components/AddTeamDialog";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trophy } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 interface Team {
   id: string;
@@ -15,6 +17,7 @@ interface Team {
 export default function Teams() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchTeams();
@@ -111,7 +114,13 @@ export default function Teams() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold">Teams</h2>
-          <AddTeamDialog onAddTeam={handleAddTeam} />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/leagues")} className="gap-2">
+              <Trophy className="h-4 w-4" />
+              Leagues
+            </Button>
+            <AddTeamDialog onAddTeam={handleAddTeam} />
+          </div>
         </div>
 
         {teams.length === 0 ? (

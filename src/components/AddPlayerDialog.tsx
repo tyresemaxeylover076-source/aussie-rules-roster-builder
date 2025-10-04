@@ -12,7 +12,7 @@ interface AddPlayerDialogProps {
   triggerButton?: React.ReactNode;
 }
 
-const positions = ["FWD", "MID", "DEF", "RUC"];
+const positions = ["FWD", "KFWD", "MID", "DEF", "KDEF", "RUC"];
 
 export function AddPlayerDialog({ onAddPlayer, triggerButton }: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { PlayerCard } from "@/components/PlayerCard";
 import { AddPlayerDialog } from "@/components/AddPlayerDialog";
+import { BulkImportPlayersDialog } from "@/components/BulkImportPlayersDialog";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -149,7 +150,10 @@ export default function TeamDetail() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold">Roster</h2>
-          <AddPlayerDialog onAddPlayer={handleAddPlayer} />
+          <div className="flex gap-2">
+            <BulkImportPlayersDialog teamId={teamId!} onImportComplete={fetchTeamAndPlayers} />
+            <AddPlayerDialog onAddPlayer={handleAddPlayer} />
+          </div>
         </div>
 
         {players.length === 0 ? (
