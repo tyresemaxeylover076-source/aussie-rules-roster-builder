@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      brownlow_votes: {
+        Row: {
+          created_at: string | null
+          format: string
+          id: string
+          match_id: string
+          player_id: string
+          team_id: string
+          user_id: string
+          votes: number
+        }
+        Insert: {
+          created_at?: string | null
+          format: string
+          id?: string
+          match_id: string
+          player_id: string
+          team_id: string
+          user_id: string
+          votes: number
+        }
+        Update: {
+          created_at?: string | null
+          format?: string
+          id?: string
+          match_id?: string
+          player_id?: string
+          team_id?: string
+          user_id?: string
+          votes?: number
+        }
+        Relationships: []
+      }
+      coaches_votes: {
+        Row: {
+          created_at: string | null
+          id: string
+          match_id: string
+          player_id: string
+          team_id: string
+          user_id: string
+          votes: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          match_id: string
+          player_id: string
+          team_id: string
+          user_id: string
+          votes: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          match_id?: string
+          player_id?: string
+          team_id?: string
+          user_id?: string
+          votes?: number
+        }
+        Relationships: []
+      }
       contract_offers: {
         Row: {
           contract_length: number
@@ -201,6 +264,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      match_stats: {
+        Row: {
+          created_at: string | null
+          disposals: number | null
+          goals: number | null
+          id: string
+          impact_score: number | null
+          marks: number | null
+          match_id: string
+          player_id: string
+          tackles: number | null
+          team_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          disposals?: number | null
+          goals?: number | null
+          id?: string
+          impact_score?: number | null
+          marks?: number | null
+          match_id: string
+          player_id: string
+          tackles?: number | null
+          team_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          disposals?: number | null
+          goals?: number | null
+          id?: string
+          impact_score?: number | null
+          marks?: number | null
+          match_id?: string
+          player_id?: string
+          tackles?: number | null
+          team_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       matches: {
         Row: {
