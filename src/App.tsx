@@ -7,6 +7,8 @@ import { AuthGuard } from "@/components/AuthGuard";
 import Index from "./pages/Index";
 import TeamDetail from "./pages/TeamDetail";
 import Leagues from "./pages/Leagues";
+import MatchLineup from "./pages/MatchLineup";
+import MatchResults from "./pages/MatchResults";
 import MatchVotes from "./pages/MatchVotes";
 import NotFound from "./pages/NotFound";
 
@@ -22,6 +24,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/teams/:teamId" element={<TeamDetail />} />
+            <Route path="/match/:matchId/lineup" element={<MatchLineup />} />
+            <Route path="/match/:matchId/results" element={<MatchResults />} />
             <Route path="/match/:matchId/votes" element={<MatchVotes />} />
             <Route path="/leagues" element={<Leagues />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

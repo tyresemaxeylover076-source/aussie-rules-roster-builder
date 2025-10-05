@@ -269,9 +269,12 @@ export type Database = {
         Row: {
           created_at: string | null
           disposals: number | null
+          fantasy_score: number | null
           goals: number | null
+          hitouts: number | null
           id: string
           impact_score: number | null
+          intercepts: number | null
           marks: number | null
           match_id: string
           player_id: string
@@ -283,9 +286,12 @@ export type Database = {
         Insert: {
           created_at?: string | null
           disposals?: number | null
+          fantasy_score?: number | null
           goals?: number | null
+          hitouts?: number | null
           id?: string
           impact_score?: number | null
+          intercepts?: number | null
           marks?: number | null
           match_id: string
           player_id: string
@@ -297,9 +303,12 @@ export type Database = {
         Update: {
           created_at?: string | null
           disposals?: number | null
+          fantasy_score?: number | null
           goals?: number | null
+          hitouts?: number | null
           id?: string
           impact_score?: number | null
+          intercepts?: number | null
           marks?: number | null
           match_id?: string
           player_id?: string
@@ -312,8 +321,10 @@ export type Database = {
       }
       matches: {
         Row: {
+          away_score: number | null
           away_team_id: string
           created_at: string | null
+          home_score: number | null
           home_team_id: string
           id: string
           status: string | null
@@ -321,8 +332,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          away_score?: number | null
           away_team_id: string
           created_at?: string | null
+          home_score?: number | null
           home_team_id: string
           id?: string
           status?: string | null
@@ -330,8 +343,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          away_score?: number | null
           away_team_id?: string
           created_at?: string | null
+          home_score?: number | null
           home_team_id?: string
           id?: string
           status?: string | null

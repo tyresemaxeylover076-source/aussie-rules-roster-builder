@@ -27,7 +27,7 @@ export function GenerateVotesDialog({ matchId, onVotesGenerated }: GenerateVotes
       // Get match stats
       const { data: stats, error: statsError } = await supabase
         .from("match_stats")
-        .select("*, players!inner(name, favorite_position)")
+        .select("*")
         .eq("match_id", matchId)
         .order("impact_score", { ascending: false });
 

@@ -145,12 +145,43 @@ export default function MatchLineup() {
 
       if (lineupError) throw lineupError;
 
-      // Call the existing simulation function from CreateMatchDialog
-      const { default: CreateMatchDialog } = await import("@/components/CreateMatchDialog");
+      // Simulate the match using the same logic
+      const selectedHomePlayers = homeTeam.players.filter(p => homeTeam.selected.has(p.id));
+      const selectedAwayPlayers = awayTeam.players.filter(p => awayTeam.selected.has(p.id));
+
+      const allStats = [
+        ...selectedHomePlayers.map(p => generatePlayerStats(p, matchId, homeTeam.teamId, user.id)),
+        ...selectedAwayPlayers.map(p => generatePlayerStats(p, matchId, awayTeam.teamId, user.id))
+      ];
+
+      const { error: statsError } = await supabase
+        .from("match_stats")
+        .insert(allStats);
+
+      if (statsError) throw statsError;
+
+      // Calculate scores
+      const homeScore = allStats
+        .filter(s => s.team_id === homeTeam.teamId)
+        .reduce((sum, s) => sum + (s.goals * 6), 0);
       
-      toast.success("Simulating match...");
-      
-      // Navigate to results page
+      const awayScore = allStats
+        .filter(s => s.team_id === awayTeam.teamId)
+        .reduce((sum, s) => sum + (s.goals * 6), 0);
+
+      // Update match with scores
+      const { error: updateError } = await supabase
+        .from("matches")
+        .update({ 
+          status: "completed",
+          home_score: homeScore,
+          away_score: awayScore
+        })
+        .eq("id", matchId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Match simulated successfully!");
       navigate(`/match/${matchId}/results`);
     } catch (error) {
       console.error("Error simulating match:", error);
@@ -243,4 +274,101 @@ export default function MatchLineup() {
       </div>
     </div>
   );
+}
+
+function generatePlayerStats(player: any, matchId: string, teamId: string, userId: string) {
+  const position = player.favorite_position;
+  const rating = player.overall_rating;
+  
+  const form = 0.7 + Math.random() * 0.6;
+  const effectiveRating = rating * form;
+  
+  let disposals = 0;
+  let goals = 0;
+  let tackles = 0;
+  let marks = 0;
+  let hitouts = 0;
+  let intercepts = 0;
+
+  switch (position) {
+    case "KFWD":
+      goals = Math.max(0, Math.round((effectiveRating / 25) + Math.random() * 3));
+      disposals = Math.round(6 + (effectiveRating / 15) + Math.random() * 4);
+      marks = Math.round(3 + (effectiveRating / 30) + Math.random() * 3);
+      tackles = Math.round(1 + Math.random() * 2);
+      break;
+
+    case "FWD":
+      goals = Math.max(0, Math.round((effectiveRating / 35) + Math.random() * 2));
+      disposals = Math.round(10 + (effectiveRating / 10) + Math.random() * 5);
+      marks = Math.round(3 + (effectiveRating / 25) + Math.random() * 3);
+      tackles = Math.round(2 + Math.random() * 3);
+      break;
+
+    case "MID":
+      disposals = Math.round(12 + (effectiveRating / 4) + Math.random() * 8);
+      goals = Math.random() < 0.3 ? Math.round(Math.random() * 2) : 0;
+      tackles = Math.round(3 + (effectiveRating / 20) + Math.random() * 4);
+      marks = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      break;
+
+    case "RUC":
+      hitouts = Math.round(15 + (effectiveRating / 3) + Math.random() * 15);
+      disposals = Math.round(10 + (effectiveRating / 8) + Math.random() * 6);
+      tackles = Math.round(2 + (effectiveRating / 25) + Math.random() * 3);
+      marks = Math.round(2 + Math.random() * 3);
+      goals = Math.random() < 0.15 ? 1 : 0;
+      break;
+
+    case "DEF":
+      disposals = Math.round(9 + (effectiveRating / 4) + Math.random() * 10);
+      marks = Math.round(3 + (effectiveRating / 25) + Math.random() * 4);
+      tackles = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      intercepts = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      goals = Math.random() < 0.05 ? 1 : 0;
+      break;
+
+    case "KDEF":
+      disposals = Math.round(6 + (effectiveRating / 15) + Math.random() * 5);
+      marks = Math.round(4 + (effectiveRating / 15) + Math.random() * 5);
+      intercepts = Math.round(3 + (effectiveRating / 20) + Math.random() * 5);
+      tackles = Math.round(1 + Math.random() * 2);
+      goals = Math.random() < 0.02 ? 1 : 0;
+      break;
+  }
+
+  const fantasyScore = 
+    disposals * 3 + 
+    goals * 6 + 
+    tackles * 4 + 
+    marks * 3 + 
+    intercepts * 5;
+
+  let impactScore = 
+    goals * 8 + 
+    disposals * 0.8 + 
+    tackles * 1.5 + 
+    marks * 1.2 + 
+    hitouts * 0.15 +
+    intercepts * 1.8;
+
+  if (disposals >= 30) impactScore += 5;
+  if (goals >= 5) impactScore += 8;
+  if (hitouts >= 40) impactScore += 4;
+  if (intercepts >= 8) impactScore += 4;
+
+  return {
+    match_id: matchId,
+    player_id: player.id,
+    team_id: teamId,
+    user_id: userId,
+    disposals,
+    goals,
+    tackles,
+    marks,
+    impact_score: Math.round(impactScore * 100) / 100,
+    fantasy_score: fantasyScore,
+    intercepts,
+    hitouts
+  };
 }
