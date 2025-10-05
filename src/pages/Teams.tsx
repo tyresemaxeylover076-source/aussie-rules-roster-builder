@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamCard } from "@/components/TeamCard";
 import { AddTeamDialog } from "@/components/AddTeamDialog";
+import { CreateMatchDialog } from "@/components/CreateMatchDialog";
 import { toast } from "sonner";
 import { Loader2, Trophy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -115,6 +116,7 @@ export default function Teams() {
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold">Teams</h2>
           <div className="flex gap-2">
+            <CreateMatchDialog />
             <Button variant="outline" onClick={() => navigate("/leagues")} className="gap-2">
               <Trophy className="h-4 w-4" />
               Leagues
