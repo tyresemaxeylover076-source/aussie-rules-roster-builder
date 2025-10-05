@@ -61,20 +61,20 @@ export function CreateMatchDialog() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Check if both teams have at least 22 players
+      // Check if both teams have at least 21 players
       const [homePlayersCheck, awayPlayersCheck] = await Promise.all([
         supabase.from("players").select("id", { count: "exact", head: true }).eq("team_id", homeTeamId),
         supabase.from("players").select("id", { count: "exact", head: true }).eq("team_id", awayTeamId)
       ]);
 
-      if ((homePlayersCheck.count || 0) < 22) {
-        toast.error("Home team needs at least 22 players");
+      if ((homePlayersCheck.count || 0) < 21) {
+        toast.error("Home team needs at least 21 players");
         setLoading(false);
         return;
       }
 
-      if ((awayPlayersCheck.count || 0) < 22) {
-        toast.error("Away team needs at least 22 players");
+      if ((awayPlayersCheck.count || 0) < 21) {
+        toast.error("Away team needs at least 21 players");
         setLoading(false);
         return;
       }
@@ -93,13 +93,9 @@ export function CreateMatchDialog() {
 
       if (matchError) throw matchError;
 
-      toast.success("Match created! Simulating...");
-      
-      // Simulate the match
-      await simulateMatch(matchData.id, homeTeamId, awayTeamId);
-
+      // Navigate to lineup selection
       setOpen(false);
-      navigate(`/match/${matchData.id}/votes`);
+      navigate(`/match/${matchData.id}/lineup`);
     } catch (error) {
       console.error("Error creating match:", error);
       toast.error("Failed to create match");
@@ -129,11 +125,22 @@ export function CreateMatchDialog() {
       if (homeError) throw homeError;
       if (awayError) throw awayError;
 
-      // Generate stats for each player
-      const allStats = [
-        ...(homePlayers || []).slice(0, 22).map(p => generatePlayerStats(p, matchId, homeTeamId, user.id)),
-        ...(awayPlayers || []).slice(0, 22).map(p => generatePlayerStats(p, matchId, awayTeamId, user.id))
-      ];
+      // Get selected lineup players
+      const { data: lineupPlayers } = await supabase
+        .from("match_lineups")
+        .select("player_id, team_id")
+        .eq("match_id", matchId);
+
+      if (!lineupPlayers || lineupPlayers.length === 0) {
+        throw new Error("No lineup selected");
+      }
+
+      // Generate stats only for selected players
+      const allStats = lineupPlayers.map(lineup => {
+        const player = [...(homePlayers || []), ...(awayPlayers || [])].find(p => p.id === lineup.player_id);
+        if (!player) return null;
+        return generatePlayerStats(player, matchId, lineup.team_id, user.id);
+      }).filter(Boolean);
 
       // Insert match stats
       const { error: statsError } = await supabase
@@ -142,10 +149,21 @@ export function CreateMatchDialog() {
 
       if (statsError) throw statsError;
 
-      // Update match status
+      // Calculate final scores
+      const homeStats = allStats.filter(s => s.team_id === homeTeamId);
+      const awayStats = allStats.filter(s => s.team_id === awayTeamId);
+      
+      const homeScore = homeStats.reduce((sum, s) => sum + (s.goals * 6), 0);
+      const awayScore = awayStats.reduce((sum, s) => sum + (s.goals * 6), 0);
+
+      // Update match status with scores
       const { error: updateError } = await supabase
         .from("matches")
-        .update({ status: "completed" })
+        .update({ 
+          status: "completed",
+          home_score: homeScore,
+          away_score: awayScore
+        })
         .eq("id", matchId);
 
       if (updateError) throw updateError;
@@ -200,7 +218,7 @@ export function CreateMatchDialog() {
             </Select>
           </div>
 
-          <Button 
+            <Button 
             onClick={handleCreateMatch} 
             disabled={loading || !homeTeamId || !awayTeamId}
             className="w-full"
@@ -208,10 +226,10 @@ export function CreateMatchDialog() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Simulating...
+                Creating...
               </>
             ) : (
-              "Create & Simulate Match"
+              "Create Match"
             )}
           </Button>
         </div>
@@ -288,8 +306,15 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       break;
   }
 
-  // Calculate impact score
-  // Goals are highly valued, disposals matter, position-specific stats weighted
+  // Calculate fantasy score: 3 disposal, 6 goal, 4 tackle, 3 mark, 5 intercept
+  const fantasyScore = 
+    disposals * 3 + 
+    goals * 6 + 
+    tackles * 4 + 
+    marks * 3 + 
+    intercepts * 5;
+
+  // Calculate impact score for votes (goals weighted heavily)
   let impactScore = 
     goals * 8 + 
     disposals * 0.8 + 
@@ -313,6 +338,9 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
     goals,
     tackles,
     marks,
-    impact_score: Math.round(impactScore * 100) / 100
+    impact_score: Math.round(impactScore * 100) / 100,
+    fantasy_score: fantasyScore,
+    intercepts,
+    hitouts
   };
 }
