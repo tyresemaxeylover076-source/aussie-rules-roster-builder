@@ -317,7 +317,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "match_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matches: {
         Row: {
@@ -520,6 +528,7 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
+          team_overall: number | null
           updated_at: string | null
           user_id: string
         }
@@ -528,6 +537,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name: string
+          team_overall?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -536,6 +546,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
+          team_overall?: number | null
           updated_at?: string | null
           user_id?: string
         }

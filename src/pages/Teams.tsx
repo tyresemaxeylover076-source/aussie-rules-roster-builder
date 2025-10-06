@@ -12,6 +12,7 @@ interface Team {
   id: string;
   name: string;
   color: string;
+  team_overall: number;
   playerCount?: number;
 }
 
@@ -63,13 +64,13 @@ export default function Teams() {
     }
   };
 
-  const handleAddTeam = async (name: string, color: string) => {
+  const handleAddTeam = async (name: string, color: string, teamOverall: number) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     const { error } = await supabase
       .from("teams")
-      .insert([{ name, color, user_id: user.id }]);
+      .insert([{ name, color, team_overall: teamOverall, user_id: user.id }]);
 
     if (error) throw error;
     await fetchTeams();
@@ -134,7 +135,7 @@ export default function Teams() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {teams.map((team) => (
-              <TeamCard key={team.id} team={team} onDelete={handleDeleteTeam} />
+              <TeamCard key={team.id} team={team} onDelete={handleDeleteTeam} onUpdate={fetchTeams} />
             ))}
           </div>
         )}

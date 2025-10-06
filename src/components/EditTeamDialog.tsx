@@ -3,18 +3,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Edit } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-interface AddTeamDialogProps {
-  onAddTeam: (name: string, color: string, teamOverall: number) => Promise<void>;
+interface EditTeamDialogProps {
+  team: {
+    id: string;
+    name: string;
+    color: string;
+    team_overall: number;
+  };
+  onUpdate: () => void;
 }
 
-export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
+export function EditTeamDialog({ team, onUpdate }: EditTeamDialogProps) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [color, setColor] = useState("#1e40af");
-  const [teamOverall, setTeamOverall] = useState(75);
+  const [name, setName] = useState(team.name);
+  const [color, setColor] = useState(team.color);
+  const [teamOverall, setTeamOverall] = useState(team.team_overall);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,14 +33,23 @@ export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
 
     setLoading(true);
     try {
-      await onAddTeam(name.trim(), color, teamOverall);
-      setName("");
-      setColor("#1e40af");
-      setTeamOverall(75);
+      const { error } = await supabase
+        .from("teams")
+        .update({ 
+          name: name.trim(), 
+          color, 
+          team_overall: teamOverall 
+        })
+        .eq("id", team.id);
+
+      if (error) throw error;
+
       setOpen(false);
-      toast.success("Team created successfully");
+      toast.success("Team updated successfully");
+      onUpdate();
     } catch (error) {
-      toast.error("Failed to create team");
+      console.error("Error updating team:", error);
+      toast.error("Failed to update team");
     } finally {
       setLoading(false);
     }
@@ -42,20 +58,19 @@ export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="gap-2">
-          <Plus className="h-5 w-5" />
-          Add Team
+        <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+          <Edit className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle>Create New Team</DialogTitle>
+          <DialogTitle>Edit Team</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Team Name</Label>
+            <Label htmlFor="edit-name">Team Name</Label>
             <Input
-              id="name"
+              id="edit-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter team name"
@@ -63,10 +78,10 @@ export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="color">Team Color</Label>
+            <Label htmlFor="edit-color">Team Color</Label>
             <div className="flex gap-2">
               <Input
-                id="color"
+                id="edit-color"
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
@@ -80,9 +95,9 @@ export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="overall">Team Overall (60-99)</Label>
+            <Label htmlFor="edit-overall">Team Overall (60-99)</Label>
             <Input
-              id="overall"
+              id="edit-overall"
               type="number"
               min="60"
               max="99"
@@ -99,7 +114,7 @@ export function AddTeamDialog({ onAddTeam }: AddTeamDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Team"}
+              {loading ? "Updating..." : "Update Team"}
             </Button>
           </div>
         </form>
