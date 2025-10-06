@@ -149,9 +149,13 @@ export default function MatchLineup() {
       const selectedHomePlayers = homeTeam.players.filter(p => homeTeam.selected.has(p.id));
       const selectedAwayPlayers = awayTeam.players.filter(p => awayTeam.selected.has(p.id));
 
+      // Count RUCs on each team for hitout distribution
+      const homeRucs = selectedHomePlayers.filter(p => p.favorite_position === "RUC");
+      const awayRucs = selectedAwayPlayers.filter(p => p.favorite_position === "RUC");
+
       const allStats = [
-        ...selectedHomePlayers.map(p => generatePlayerStats(p, matchId, homeTeam.teamId, user.id)),
-        ...selectedAwayPlayers.map(p => generatePlayerStats(p, matchId, awayTeam.teamId, user.id))
+        ...selectedHomePlayers.map(p => generatePlayerStats(p, matchId, homeTeam.teamId, user.id, homeRucs, awayRucs)),
+        ...selectedAwayPlayers.map(p => generatePlayerStats(p, matchId, awayTeam.teamId, user.id, homeRucs, awayRucs))
       ];
 
       const { error: statsError } = await supabase
@@ -290,7 +294,7 @@ export default function MatchLineup() {
   );
 }
 
-function generatePlayerStats(player: any, matchId: string, teamId: string, userId: string) {
+function generatePlayerStats(player: any, matchId: string, teamId: string, userId: string, homeRucs: Player[], awayRucs: Player[]) {
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
@@ -335,8 +339,22 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       break;
 
     case "RUC":
-      // If only RUC, gets 35-60 hitouts
-      hitouts = Math.round(20 + (effectiveRating / 3) + Math.random() * 18);
+      // Hitouts based on opposition
+      const opposingRucs = homeRucs.some(r => r.id === player.id) ? awayRucs : homeRucs;
+      
+      if (opposingRucs.length > 0) {
+        // Two RUCs competing: 20-30 hitouts based on rating advantage
+        const opposingRating = opposingRucs[0].overall_rating;
+        const ratingDiff = rating - opposingRating;
+        // Base 25 hitouts, +/- based on rating difference
+        hitouts = Math.round(25 + (ratingDiff / 4) + Math.random() * 5 - 2.5);
+        hitouts = Math.max(18, Math.min(32, hitouts)); // Clamp to 18-32
+      } else {
+        // Solo RUC dominates: 35-60 hitouts based on rating
+        hitouts = Math.round(35 + ((rating - 60) / 2) + Math.random() * 10);
+        hitouts = Math.max(35, Math.min(60, hitouts));
+      }
+      
       disposals = Math.round(6 + (effectiveRating / 12) + Math.random() * 4);
       tackles = Math.round(1 + (effectiveRating / 35) + Math.random() * 2);
       marks = Math.round(1 + Math.random() * 2);
