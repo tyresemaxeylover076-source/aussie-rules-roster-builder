@@ -32,8 +32,19 @@ export default function MatchVotes() {
         .select("*, players!inner(name, favorite_position)")
         .eq("match_id", matchId);
 
-      setCoachesVotes(coachesData || []);
-      setBrownlowVotes(brownlowData || []);
+      // Transform data to match component expectations (players -> player)
+      const transformedCoaches = coachesData?.map((vote: any) => ({
+        ...vote,
+        player: vote.players
+      })) || [];
+
+      const transformedBrownlow = brownlowData?.map((vote: any) => ({
+        ...vote,
+        player: vote.players
+      })) || [];
+
+      setCoachesVotes(transformedCoaches);
+      setBrownlowVotes(transformedBrownlow);
       
       if (brownlowData && brownlowData.length > 0) {
         setBrownlowFormat(brownlowData[0].format as "3-2-1" | "5-4-3-2-1");

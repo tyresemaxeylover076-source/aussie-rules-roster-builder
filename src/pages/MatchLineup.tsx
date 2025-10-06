@@ -280,7 +280,8 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
-  const form = 0.7 + Math.random() * 0.6;
+  // Form factor: 0.5-1.3 (good players can have bad games, bad players can have rare great games)
+  const form = 0.5 + Math.random() * 0.8;
   const effectiveRating = rating * form;
   
   let disposals = 0;
@@ -292,57 +293,69 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
 
   switch (position) {
     case "KFWD":
-      goals = Math.max(0, Math.round((effectiveRating / 25) + Math.random() * 3));
-      disposals = Math.round(6 + (effectiveRating / 15) + Math.random() * 4);
-      marks = Math.round(3 + (effectiveRating / 30) + Math.random() * 3);
-      tackles = Math.round(1 + Math.random() * 2);
+      // Best KFWD average 2.6-3.6 goals per game
+      goals = Math.max(0, Math.round((effectiveRating / 40) + Math.random() * 2.5));
+      disposals = Math.round(4 + (effectiveRating / 20) + Math.random() * 4);
+      marks = Math.round(2 + (effectiveRating / 40) + Math.random() * 3);
+      tackles = Math.round(Math.random() * 2);
+      hitouts = Math.random() < 0.1 ? Math.round(Math.random() * 2) : 0;
       break;
 
     case "FWD":
-      goals = Math.max(0, Math.round((effectiveRating / 35) + Math.random() * 2));
-      disposals = Math.round(10 + (effectiveRating / 10) + Math.random() * 5);
-      marks = Math.round(3 + (effectiveRating / 25) + Math.random() * 3);
-      tackles = Math.round(2 + Math.random() * 3);
+      // Fewer goals than KFWD but more disposals
+      goals = Math.max(0, Math.round((effectiveRating / 60) + Math.random() * 1.5));
+      disposals = Math.round(8 + (effectiveRating / 12) + Math.random() * 5);
+      marks = Math.round(2 + (effectiveRating / 35) + Math.random() * 2);
+      tackles = Math.round(1 + Math.random() * 3);
+      hitouts = Math.random() < 0.05 ? 1 : 0;
       break;
 
     case "MID":
-      disposals = Math.round(12 + (effectiveRating / 4) + Math.random() * 8);
-      goals = Math.random() < 0.3 ? Math.round(Math.random() * 2) : 0;
-      tackles = Math.round(3 + (effectiveRating / 20) + Math.random() * 4);
-      marks = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      // Best mids get 28-33 disposals on average (e.g., 92 rated → ~31 disposals)
+      disposals = Math.round(8 + (effectiveRating / 3.5) + Math.random() * 6);
+      goals = Math.random() < 0.25 ? Math.round(Math.random() * 2) : 0;
+      tackles = Math.round(2 + (effectiveRating / 25) + Math.random() * 3);
+      marks = Math.round(1 + (effectiveRating / 50) + Math.random() * 2);
+      intercepts = Math.round((effectiveRating / 80) + Math.random() * 2);
       break;
 
     case "RUC":
-      hitouts = Math.round(15 + (effectiveRating / 3) + Math.random() * 15);
-      disposals = Math.round(10 + (effectiveRating / 8) + Math.random() * 6);
-      tackles = Math.round(2 + (effectiveRating / 25) + Math.random() * 3);
-      marks = Math.round(2 + Math.random() * 3);
-      goals = Math.random() < 0.15 ? 1 : 0;
+      // If only RUC, gets 35-60 hitouts
+      hitouts = Math.round(25 + (effectiveRating / 2.5) + Math.random() * 20);
+      disposals = Math.round(8 + (effectiveRating / 10) + Math.random() * 5);
+      tackles = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      marks = Math.round(1 + Math.random() * 3);
+      goals = Math.random() < 0.12 ? 1 : 0;
       break;
 
     case "DEF":
-      disposals = Math.round(9 + (effectiveRating / 4) + Math.random() * 10);
-      marks = Math.round(3 + (effectiveRating / 25) + Math.random() * 4);
-      tackles = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
-      intercepts = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
-      goals = Math.random() < 0.05 ? 1 : 0;
+      // Best DEF get 20-33 disposals on a good day, 9-16 on bad
+      disposals = Math.round(7 + (effectiveRating / 4) + Math.random() * 8);
+      marks = Math.round(2 + (effectiveRating / 30) + Math.random() * 3);
+      tackles = Math.round(2 + (effectiveRating / 35) + Math.random() * 3);
+      intercepts = Math.round(1 + (effectiveRating / 40) + Math.random() * 3);
+      goals = Math.random() < 0.03 ? 1 : 0;
       break;
 
     case "KDEF":
-      disposals = Math.round(6 + (effectiveRating / 15) + Math.random() * 5);
-      marks = Math.round(4 + (effectiveRating / 15) + Math.random() * 5);
-      intercepts = Math.round(3 + (effectiveRating / 20) + Math.random() * 5);
+      // Not many disposals, rare goals, lots of marks (4-12), intercepts are best stat
+      disposals = Math.round(5 + (effectiveRating / 25) + Math.random() * 4);
+      marks = Math.round(3 + (effectiveRating / 20) + Math.random() * 5);
+      intercepts = Math.round(2 + (effectiveRating / 25) + Math.random() * 5);
       tackles = Math.round(1 + Math.random() * 2);
-      goals = Math.random() < 0.02 ? 1 : 0;
+      goals = Math.random() < 0.01 ? 1 : 0;
+      hitouts = Math.random() < 0.08 ? Math.round(Math.random() * 2) : 0;
       break;
   }
 
+  // Fantasy: 2 disposal, 6 goal, 4 tackle, 3 mark, 4 intercept, 1 hitout
   const fantasyScore = 
-    disposals * 3 + 
+    disposals * 2 + 
     goals * 6 + 
     tackles * 4 + 
     marks * 3 + 
-    intercepts * 5;
+    intercepts * 4 +
+    hitouts * 1;
 
   let impactScore = 
     goals * 8 + 
@@ -353,9 +366,9 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
     intercepts * 1.8;
 
   if (disposals >= 30) impactScore += 5;
-  if (goals >= 5) impactScore += 8;
-  if (hitouts >= 40) impactScore += 4;
-  if (intercepts >= 8) impactScore += 4;
+  if (goals >= 4) impactScore += 6;
+  if (hitouts >= 45) impactScore += 4;
+  if (intercepts >= 7) impactScore += 4;
 
   return {
     match_id: matchId,
