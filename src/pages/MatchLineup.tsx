@@ -298,8 +298,11 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
-  // Form variance: 0.75-1.25 (allows for good/bad games)
-  const form = 0.75 + Math.random() * 0.5;
+  // Form variance: 0.65-1.35 (allows for more realistic good/bad games)
+  const form = 0.65 + Math.random() * 0.7;
+  
+  // Individual player variance (makes players in same position have different games)
+  const playerVariance = 0.85 + Math.random() * 0.3;
   
   let disposals = 0;
   let goals = 0;
@@ -308,10 +311,13 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   let hitouts = 0;
   let intercepts = 0;
 
-  // Helper to get base stat from rating buckets
+  // Helper to get base stat from rating buckets with within-bucket variance
   const getBaseStat = (buckets: number[]) => {
     const idx = Math.min(Math.floor((rating - 60) / 5), 7);
-    return buckets[idx] || buckets[0];
+    const base = buckets[idx] || buckets[0];
+    // Add variance within the bucket (±10%)
+    const withinBucketBonus = (rating % 5) * 0.02;
+    return base * (1 + withinBucketBonus);
   };
 
   switch (position) {
@@ -322,10 +328,10 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       const midTackles = [1.5, 2, 2.5, 3.5, 4, 5, 5.5, 6];
       const midIntercepts = [0.8, 0.9, 1.2, 1.5, 2, 2.5, 3, 3.5];
       
-      disposals = Math.round(getBaseStat(midDisposals) * form);
-      marks = Math.round(getBaseStat(midMarks) * form);
-      tackles = Math.round(getBaseStat(midTackles) * form);
-      intercepts = Math.round(getBaseStat(midIntercepts) * form);
+      disposals = Math.round(getBaseStat(midDisposals) * form * playerVariance);
+      marks = Math.round(getBaseStat(midMarks) * form * playerVariance);
+      tackles = Math.round(getBaseStat(midTackles) * form * playerVariance);
+      intercepts = Math.round(getBaseStat(midIntercepts) * form * playerVariance);
       goals = Math.random() < 0.15 ? Math.round(Math.random() * 2) : 0;
       break;
 
@@ -337,10 +343,10 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       const hbTackles = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
       const hbIntercepts = [1, 1.2, 1.6, 2, 2.5, 3, 3.5, 4];
       
-      disposals = Math.round(getBaseStat(hbDisposals) * form);
-      marks = Math.round(getBaseStat(hbMarks) * form);
-      tackles = Math.round(getBaseStat(hbTackles) * form);
-      intercepts = Math.round(getBaseStat(hbIntercepts) * form);
+      disposals = Math.round(getBaseStat(hbDisposals) * form * playerVariance);
+      marks = Math.round(getBaseStat(hbMarks) * form * playerVariance);
+      tackles = Math.round(getBaseStat(hbTackles) * form * playerVariance);
+      intercepts = Math.round(getBaseStat(hbIntercepts) * form * playerVariance);
       goals = Math.random() < 0.03 ? 1 : 0;
       break;
 
@@ -351,24 +357,25 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       const fwdTackles = [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
       const fwdGoals = [0.2, 0.4, 0.6, 0.95, 1.15, 1.4, 1.6, 2];
       
-      disposals = Math.round(getBaseStat(fwdDisposals) * form);
-      marks = Math.round(getBaseStat(fwdMarks) * form);
-      tackles = Math.round(getBaseStat(fwdTackles) * form);
-      goals = Math.round(getBaseStat(fwdGoals) * form + Math.random() - 0.3);
+      disposals = Math.round(getBaseStat(fwdDisposals) * form * playerVariance);
+      marks = Math.round(getBaseStat(fwdMarks) * form * playerVariance);
+      tackles = Math.round(getBaseStat(fwdTackles) * form * playerVariance);
+      goals = Math.round(getBaseStat(fwdGoals) * form * playerVariance + Math.random() - 0.3);
       goals = Math.max(0, goals);
       break;
 
     case "KFWD":
-      // Key Forward: Disposals: 8.5-16, Marks: 1.5-7.5, Tackles: 1-2.25, Goals: 0.4-2.6
-      const kfwdDisposals = [8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 16];
+      // Key Forward: Goals are primary stat, reduced other stats
+      const kfwdDisposals = [6, 7, 8, 9, 9.5, 10, 10.5, 11];
       const kfwdMarks = [1.5, 2, 2.5, 3.5, 4.25, 5, 6, 7.5];
-      const kfwdTackles = [1, 1, 1.5, 1.5, 1.75, 2, 2, 2.25];
-      const kfwdGoals = [0.4, 0.55, 0.8, 1.3, 1.55, 1.9, 2.15, 2.6];
+      const kfwdTackles = [0.8, 0.9, 1, 1.2, 1.4, 1.6, 1.8, 2];
+      const kfwdGoals = [0.5, 0.8, 1.2, 1.7, 2.2, 2.7, 3.2, 4.0];
       
-      disposals = Math.round(getBaseStat(kfwdDisposals) * form);
-      marks = Math.round(getBaseStat(kfwdMarks) * form);
-      tackles = Math.round(getBaseStat(kfwdTackles) * form);
-      goals = Math.round(getBaseStat(kfwdGoals) * form + Math.random() - 0.2);
+      disposals = Math.round(getBaseStat(kfwdDisposals) * form * playerVariance * 0.9);
+      marks = Math.round(getBaseStat(kfwdMarks) * form * playerVariance);
+      tackles = Math.round(getBaseStat(kfwdTackles) * form * playerVariance);
+      // KFWDs are goal-focused with high variance
+      goals = Math.round(getBaseStat(kfwdGoals) * form * playerVariance + (Math.random() * 2 - 0.5));
       goals = Math.max(0, goals);
       break;
 
@@ -398,9 +405,9 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
         hitouts = Math.max(30, hitouts);
       }
       
-      disposals = Math.round(getBaseStat(rucDisposals) * form);
-      marks = Math.round(getBaseStat(rucMarks) * form);
-      tackles = Math.round((1 + rating / 50) * form);
+      disposals = Math.round(getBaseStat(rucDisposals) * form * playerVariance);
+      marks = Math.round(getBaseStat(rucMarks) * form * playerVariance);
+      tackles = Math.round((1 + rating / 50) * form * playerVariance);
       goals = Math.random() < 0.08 ? 1 : 0;
       break;
 
@@ -411,10 +418,10 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       const kdefIntercepts = [1.15, 1.4, 1.7, 2.1, 2.5, 3, 3.5, 4.2];
       const kdefTackles = [1, 1.4, 1.5, 1.7, 2, 2.4, 2.7, 3.2];
       
-      disposals = Math.round(getBaseStat(kdefDisposals) * form);
-      marks = Math.round(getBaseStat(kdefMarks) * form);
-      intercepts = Math.round(getBaseStat(kdefIntercepts) * form);
-      tackles = Math.round(getBaseStat(kdefTackles) * form);
+      disposals = Math.round(getBaseStat(kdefDisposals) * form * playerVariance);
+      marks = Math.round(getBaseStat(kdefMarks) * form * playerVariance);
+      intercepts = Math.round(getBaseStat(kdefIntercepts) * form * playerVariance);
+      tackles = Math.round(getBaseStat(kdefTackles) * form * playerVariance);
       goals = Math.random() < 0.01 ? 1 : 0;
       break;
   }
