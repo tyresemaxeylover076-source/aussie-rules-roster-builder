@@ -199,6 +199,27 @@ export default function MatchLineup() {
 
       if (updateError) throw updateError;
 
+      // Generate Brownlow votes (3-2-1 format based on impact_score)
+      const allPlayerStats = [...allStats].sort((a, b) => b.impact_score - a.impact_score);
+      const brownlowVotes = [
+        { player_id: allPlayerStats[0].player_id, team_id: allPlayerStats[0].team_id, votes: 3 },
+        { player_id: allPlayerStats[1].player_id, team_id: allPlayerStats[1].team_id, votes: 2 },
+        { player_id: allPlayerStats[2].player_id, team_id: allPlayerStats[2].team_id, votes: 1 },
+      ].map(v => ({
+        match_id: matchId,
+        player_id: v.player_id,
+        team_id: v.team_id,
+        user_id: user.id,
+        votes: v.votes,
+        format: "3-2-1" as const
+      }));
+
+      const { error: votesError } = await supabase
+        .from("brownlow_votes")
+        .insert(brownlowVotes);
+
+      if (votesError) throw votesError;
+
       toast.success("Match simulated successfully!");
       navigate(`/match/${matchId}/results`);
     } catch (error) {
@@ -298,8 +319,8 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
-  // Form variance: 0.75-1.25 (allows for good/bad games)
-  const form = 0.75 + Math.random() * 0.5;
+  // Form variance: 0.65-1.35 (allows for bigger swings between ratings and games)
+  const form = 0.65 + Math.random() * 0.7;
   
   let disposals = 0;
   let goals = 0;
@@ -308,10 +329,13 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   let hitouts = 0;
   let intercepts = 0;
 
-  // Helper to get base stat from rating buckets
+  // Helper to get base stat from rating buckets with interpolation
   const getBaseStat = (buckets: number[]) => {
     const idx = Math.min(Math.floor((rating - 60) / 5), 7);
-    return buckets[idx] || buckets[0];
+    const baseValue = buckets[idx] || buckets[0];
+    // Add extra scaling based on rating within bucket to increase variance
+    const withinBucketBonus = ((rating - 60) % 5) * 0.15;
+    return baseValue + withinBucketBonus;
   };
 
   switch (position) {

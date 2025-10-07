@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Trophy } from "lucide-react";
+import { BrownlowVotes } from "@/components/BrownlowVotes";
 
 interface MatchData {
   id: string;
@@ -31,12 +32,24 @@ interface PlayerStat {
   };
 }
 
+interface BrownlowVote {
+  id: string;
+  player_id: string;
+  votes: number;
+  format: "3-2-1" | "5-4-3-2-1";
+  players: {
+    name: string;
+    favorite_position: string;
+  };
+}
+
 export default function MatchResults() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [match, setMatch] = useState<MatchData | null>(null);
   const [homeStats, setHomeStats] = useState<PlayerStat[]>([]);
   const [awayStats, setAwayStats] = useState<PlayerStat[]>([]);
+  const [brownlowVotes, setBrownlowVotes] = useState<BrownlowVote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -63,9 +76,18 @@ export default function MatchResults() {
 
       if (statsError) throw statsError;
 
+      const { data: votesData, error: votesError } = await supabase
+        .from("brownlow_votes")
+        .select("*, players(name, favorite_position)")
+        .eq("match_id", matchId)
+        .order("votes", { ascending: false });
+
+      if (votesError) throw votesError;
+
       setMatch(matchData as any);
       setHomeStats((statsData as any[]).filter(s => s.team_id === matchData.home_team_id));
       setAwayStats((statsData as any[]).filter(s => s.team_id === matchData.away_team_id));
+      setBrownlowVotes((votesData as any[]) || []);
     } catch (error) {
       console.error("Error loading results:", error);
     } finally {
@@ -159,10 +181,17 @@ export default function MatchResults() {
           </div>
         </Card>
 
+        {/* Brownlow Votes */}
+        {brownlowVotes.length > 0 && (
+          <div className="mb-8">
+            <BrownlowVotes votes={brownlowVotes as any} format="3-2-1" />
+          </div>
+        )}
+
         {/* Stats Tables */}
         <div className="space-y-6">
           <div className="text-sm text-muted-foreground mb-2">
-            Fantasy Scoring: Disposals (3), Goals (6), Tackles (4), Marks (3), Intercepts (5)
+            Fantasy Scoring: Disposals (2), Goals (6), Tackles (4), Marks (3), Intercepts (4), Hitouts (1)
           </div>
           <StatsTable stats={homeStats} teamName={match.home_team.name} />
           <StatsTable stats={awayStats} teamName={match.away_team.name} />
