@@ -298,9 +298,8 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
-  // Form factor: 0.4-1.15 (good players can have bad games, bad players can have rare great games)
-  const form = 0.4 + Math.random() * 0.75;
-  const effectiveRating = rating * form;
+  // Form variance: 0.75-1.25 (allows for good/bad games)
+  const form = 0.75 + Math.random() * 0.5;
   
   let disposals = 0;
   let goals = 0;
@@ -309,75 +308,114 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   let hitouts = 0;
   let intercepts = 0;
 
+  // Helper to get base stat from rating buckets
+  const getBaseStat = (buckets: number[]) => {
+    const idx = Math.min(Math.floor((rating - 60) / 5), 7);
+    return buckets[idx] || buckets[0];
+  };
+
   switch (position) {
-    case "KFWD":
-      // Best KFWD average 2.6-3.6 goals per game
-      goals = Math.max(0, Math.round((effectiveRating / 50) + Math.random() * 2));
-      disposals = Math.round(3 + (effectiveRating / 25) + Math.random() * 3);
-      marks = Math.round(1 + (effectiveRating / 50) + Math.random() * 2);
-      tackles = Math.round(Math.random() * 2);
-      hitouts = Math.random() < 0.08 ? Math.round(Math.random() * 2) : 0;
+    case "MID":
+      // Disposals: 9.5-31, Marks: 1.5-5, Tackles: 1.5-6, Intercepts: 0.8-3.5
+      const midDisposals = [9.5, 12.5, 16.5, 19.5, 22.5, 25.5, 28.5, 31];
+      const midMarks = [1.5, 2.5, 2.5, 3, 3.5, 4, 4.5, 5];
+      const midTackles = [1.5, 2, 2.5, 3.5, 4, 5, 5.5, 6];
+      const midIntercepts = [0.8, 0.9, 1.2, 1.5, 2, 2.5, 3, 3.5];
+      
+      disposals = Math.round(getBaseStat(midDisposals) * form);
+      marks = Math.round(getBaseStat(midMarks) * form);
+      tackles = Math.round(getBaseStat(midTackles) * form);
+      intercepts = Math.round(getBaseStat(midIntercepts) * form);
+      goals = Math.random() < 0.15 ? Math.round(Math.random() * 2) : 0;
+      break;
+
+    case "HB":
+    case "DEF":
+      // Half-Back: Disposals: 9.5-30, Marks: 1.8-5.5, Tackles: 1.5-5, Intercepts: 1-4
+      const hbDisposals = [9.5, 12.5, 15.5, 18.5, 21.5, 24.5, 27.5, 30];
+      const hbMarks = [1.8, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
+      const hbTackles = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+      const hbIntercepts = [1, 1.2, 1.6, 2, 2.5, 3, 3.5, 4];
+      
+      disposals = Math.round(getBaseStat(hbDisposals) * form);
+      marks = Math.round(getBaseStat(hbMarks) * form);
+      tackles = Math.round(getBaseStat(hbTackles) * form);
+      intercepts = Math.round(getBaseStat(hbIntercepts) * form);
+      goals = Math.random() < 0.03 ? 1 : 0;
       break;
 
     case "FWD":
-      // Fewer goals than KFWD but more disposals
-      goals = Math.max(0, Math.round((effectiveRating / 70) + Math.random() * 1.2));
-      disposals = Math.round(6 + (effectiveRating / 15) + Math.random() * 4);
-      marks = Math.round(1 + (effectiveRating / 40) + Math.random() * 2);
-      tackles = Math.round(1 + Math.random() * 2);
-      hitouts = Math.random() < 0.04 ? 1 : 0;
+      // Small Forward: Disposals: 5.5-14.5, Marks: 1-4.25, Tackles: 2-5.5, Goals: 0.2-2
+      const fwdDisposals = [5.5, 7, 8.5, 9.5, 10.5, 12.5, 13.5, 14.5];
+      const fwdMarks = [1, 1.5, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25];
+      const fwdTackles = [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
+      const fwdGoals = [0.2, 0.4, 0.6, 0.95, 1.15, 1.4, 1.6, 2];
+      
+      disposals = Math.round(getBaseStat(fwdDisposals) * form);
+      marks = Math.round(getBaseStat(fwdMarks) * form);
+      tackles = Math.round(getBaseStat(fwdTackles) * form);
+      goals = Math.round(getBaseStat(fwdGoals) * form + Math.random() - 0.3);
+      goals = Math.max(0, goals);
       break;
 
-    case "MID":
-      // Best mids (92 rating) average 28-33, rarely hit 40
-      // At form=1.0: 92 rating → ~30 disposals, at form=0.6: ~22 disposals
-      disposals = Math.round(6 + (effectiveRating / 4.2) + Math.random() * 4);
-      goals = Math.random() < 0.2 ? Math.round(Math.random() * 2) : 0;
-      tackles = Math.round(1 + (effectiveRating / 30) + Math.random() * 3);
-      marks = Math.round(1 + (effectiveRating / 60) + Math.random() * 2);
-      intercepts = Math.round((effectiveRating / 100) + Math.random() * 1);
+    case "KFWD":
+      // Key Forward: Disposals: 8.5-16, Marks: 1.5-7.5, Tackles: 1-2.25, Goals: 0.4-2.6
+      const kfwdDisposals = [8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 16];
+      const kfwdMarks = [1.5, 2, 2.5, 3.5, 4.25, 5, 6, 7.5];
+      const kfwdTackles = [1, 1, 1.5, 1.5, 1.75, 2, 2, 2.25];
+      const kfwdGoals = [0.4, 0.55, 0.8, 1.3, 1.55, 1.9, 2.15, 2.6];
+      
+      disposals = Math.round(getBaseStat(kfwdDisposals) * form);
+      marks = Math.round(getBaseStat(kfwdMarks) * form);
+      tackles = Math.round(getBaseStat(kfwdTackles) * form);
+      goals = Math.round(getBaseStat(kfwdGoals) * form + Math.random() - 0.2);
+      goals = Math.max(0, goals);
       break;
 
     case "RUC":
-      // Hitouts based on opposition
+      // Ruck: Hitouts based on opposition, Disposals: 4-14, Marks: 0.8-5
+      const rucDisposals = [5, 6, 7, 8, 9, 10, 11.5, 12.5];
+      const rucMarks = [1, 1.5, 1.8, 2.2, 2.7, 3.2, 3.7, 4.2];
+      
       const opposingRucs = homeRucs.some(r => r.id === player.id) ? awayRucs : homeRucs;
       
       if (opposingRucs.length > 0) {
-        // Two RUCs competing: 20-30 hitouts based on rating advantage
+        // Two RUCs competing
         const opposingRating = opposingRucs[0].overall_rating;
         const ratingDiff = rating - opposingRating;
-        // Base 25 hitouts, +/- based on rating difference
-        hitouts = Math.round(25 + (ratingDiff / 4) + Math.random() * 5 - 2.5);
-        hitouts = Math.max(18, Math.min(32, hitouts)); // Clamp to 18-32
+        
+        // Base hitouts by rating bucket: 12.5, 17.5, 22.5, 27, 31.5, 35, 40, 47.5
+        const baseHitouts = [12.5, 17.5, 22.5, 27, 31.5, 35, 40, 47.5];
+        const myBase = getBaseStat(baseHitouts);
+        
+        // Adjust based on opposition (if opponent is better, you get fewer)
+        hitouts = Math.round(myBase + (ratingDiff * 0.3) + (Math.random() * 6 - 3));
+        hitouts = Math.max(8, Math.min(55, hitouts));
       } else {
-        // Solo RUC dominates: 35-60 hitouts based on rating
-        hitouts = Math.round(35 + ((rating - 60) / 2) + Math.random() * 10);
-        hitouts = Math.max(35, Math.min(60, hitouts));
+        // Solo RUC dominates
+        const soloHitouts = [12, 17, 22, 27, 31, 35, 40, 47];
+        hitouts = Math.round(getBaseStat(soloHitouts) * 1.3 + Math.random() * 8);
+        hitouts = Math.max(30, hitouts);
       }
       
-      disposals = Math.round(6 + (effectiveRating / 12) + Math.random() * 4);
-      tackles = Math.round(1 + (effectiveRating / 35) + Math.random() * 2);
-      marks = Math.round(1 + Math.random() * 2);
-      goals = Math.random() < 0.1 ? 1 : 0;
-      break;
-
-    case "DEF":
-      // Best DEF get 20-33 disposals on a good day, 9-16 on bad
-      disposals = Math.round(5 + (effectiveRating / 4.5) + Math.random() * 6);
-      marks = Math.round(1 + (effectiveRating / 35) + Math.random() * 2);
-      tackles = Math.round(1 + (effectiveRating / 40) + Math.random() * 2);
-      intercepts = Math.round(1 + (effectiveRating / 50) + Math.random() * 2);
-      goals = Math.random() < 0.02 ? 1 : 0;
+      disposals = Math.round(getBaseStat(rucDisposals) * form);
+      marks = Math.round(getBaseStat(rucMarks) * form);
+      tackles = Math.round((1 + rating / 50) * form);
+      goals = Math.random() < 0.08 ? 1 : 0;
       break;
 
     case "KDEF":
-      // Not many disposals, rare goals, lots of marks (4-12), intercepts are best stat
-      disposals = Math.round(4 + (effectiveRating / 30) + Math.random() * 3);
-      marks = Math.round(2 + (effectiveRating / 25) + Math.random() * 4);
-      intercepts = Math.round(2 + (effectiveRating / 30) + Math.random() * 4);
-      tackles = Math.round(Math.random() * 2);
-      goals = Math.random() < 0.008 ? 1 : 0;
-      hitouts = Math.random() < 0.06 ? Math.round(Math.random() * 2) : 0;
+      // Key Defender: Disposals: 8-22, Marks: 2-8, Intercepts: 0.8-5, Tackles: 0.5-4
+      const kdefDisposals = [9, 10, 11.5, 13.5, 15, 16, 17.5, 19];
+      const kdefMarks = [2.5, 3, 3.7, 4.2, 4.7, 5.2, 5.7, 7];
+      const kdefIntercepts = [1.15, 1.4, 1.7, 2.1, 2.5, 3, 3.5, 4.2];
+      const kdefTackles = [1, 1.4, 1.5, 1.7, 2, 2.4, 2.7, 3.2];
+      
+      disposals = Math.round(getBaseStat(kdefDisposals) * form);
+      marks = Math.round(getBaseStat(kdefMarks) * form);
+      intercepts = Math.round(getBaseStat(kdefIntercepts) * form);
+      tackles = Math.round(getBaseStat(kdefTackles) * form);
+      goals = Math.random() < 0.01 ? 1 : 0;
       break;
   }
 
