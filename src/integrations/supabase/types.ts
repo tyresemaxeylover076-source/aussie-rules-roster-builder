@@ -267,6 +267,7 @@ export type Database = {
       }
       match_stats: {
         Row: {
+          behinds: number | null
           created_at: string | null
           disposals: number | null
           fantasy_score: number | null
@@ -284,6 +285,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          behinds?: number | null
           created_at?: string | null
           disposals?: number | null
           fantasy_score?: number | null
@@ -301,6 +303,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          behinds?: number | null
           created_at?: string | null
           disposals?: number | null
           fantasy_score?: number | null
