@@ -173,19 +173,22 @@ export default function MatchLineup() {
       const homeTeamData = teamsData?.find(t => t.id === homeTeam.teamId);
       const awayTeamData = teamsData?.find(t => t.id === awayTeam.teamId);
 
-      // Team overall affects scoring (60-99 range, 75 is average)
-      // Higher overall = slight scoring boost
-      const homeModifier = 1 + ((homeTeamData?.team_overall || 75) - 75) / 100;
-      const awayModifier = 1 + ((awayTeamData?.team_overall || 75) - 75) / 100;
-
-      // Calculate scores with team overall modifier
-      const homeScore = Math.round(allStats
-        .filter(s => s.team_id === homeTeam.teamId)
-        .reduce((sum, s) => sum + (s.goals * 6), 0) * homeModifier);
+      // Calculate scores from goals and behinds
+      const homeGoals = allStats.filter(s => s.team_id === homeTeam.teamId).reduce((sum, s) => sum + s.goals, 0);
+      const homeBehinds = allStats.filter(s => s.team_id === homeTeam.teamId).reduce((sum, s) => sum + (s.behinds || 0), 0);
+      const awayGoals = allStats.filter(s => s.team_id === awayTeam.teamId).reduce((sum, s) => sum + s.goals, 0);
+      const awayBehinds = allStats.filter(s => s.team_id === awayTeam.teamId).reduce((sum, s) => sum + (s.behinds || 0), 0);
       
-      const awayScore = Math.round(allStats
-        .filter(s => s.team_id === awayTeam.teamId)
-        .reduce((sum, s) => sum + (s.goals * 6), 0) * awayModifier);
+      // Team overall affects scoring slightly (60-99 range, 75 is average)
+      const homeModifier = 0.95 + ((homeTeamData?.team_overall || 75) - 75) / 150;
+      const awayModifier = 0.95 + ((awayTeamData?.team_overall || 75) - 75) / 150;
+      
+      // Random variance for score (0.85-1.15)
+      const homeScoreVariance = 0.85 + Math.random() * 0.3;
+      const awayScoreVariance = 0.85 + Math.random() * 0.3;
+
+      const homeScore = Math.round((homeGoals * 6 + homeBehinds) * homeModifier * homeScoreVariance);
+      const awayScore = Math.round((awayGoals * 6 + awayBehinds) * awayModifier * awayScoreVariance);
 
       // Update match with scores
       const { error: updateError } = await supabase
@@ -298,14 +301,15 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   const position = player.favorite_position;
   const rating = player.overall_rating;
   
-  // Form variance: 0.65-1.35 (allows for more realistic good/bad games)
-  const form = 0.65 + Math.random() * 0.7;
+  // Form variance: 0.55-1.45 (wider range for more unpredictable games)
+  const form = 0.55 + Math.random() * 0.9;
   
   // Individual player variance (makes players in same position have different games)
-  const playerVariance = 0.85 + Math.random() * 0.3;
+  const playerVariance = 0.75 + Math.random() * 0.5;
   
   let disposals = 0;
   let goals = 0;
+  let behinds = 0;
   let tackles = 0;
   let marks = 0;
   let hitouts = 0;
@@ -322,61 +326,69 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
 
   switch (position) {
     case "MID":
-      // Disposals: 9.5-31, Marks: 1.5-5, Tackles: 1.5-6, Intercepts: 0.8-3.5
+      // MID: Focus on disposals and tackles
       const midDisposals = [9.5, 12.5, 16.5, 19.5, 22.5, 25.5, 28.5, 31];
-      const midMarks = [1.5, 2.5, 2.5, 3, 3.5, 4, 4.5, 5];
+      const midMarks = [1.2, 1.8, 2, 2.2, 2.5, 2.8, 3.2, 3.5];
       const midTackles = [1.5, 2, 2.5, 3.5, 4, 5, 5.5, 6];
-      const midIntercepts = [0.8, 0.9, 1.2, 1.5, 2, 2.5, 3, 3.5];
+      const midIntercepts = [0.5, 0.6, 0.8, 1, 1.2, 1.5, 1.8, 2];
       
       disposals = Math.round(getBaseStat(midDisposals) * form * playerVariance);
-      marks = Math.round(getBaseStat(midMarks) * form * playerVariance);
+      marks = Math.round(getBaseStat(midMarks) * form * playerVariance * 0.8);
       tackles = Math.round(getBaseStat(midTackles) * form * playerVariance);
-      intercepts = Math.round(getBaseStat(midIntercepts) * form * playerVariance);
-      goals = Math.random() < 0.15 ? Math.round(Math.random() * 2) : 0;
+      intercepts = Math.round(getBaseStat(midIntercepts) * form * playerVariance * 0.7);
+      goals = Math.random() < 0.12 ? Math.round(Math.random() * 2) : 0;
+      behinds = goals > 0 && Math.random() < 0.4 ? Math.round(Math.random() * 2) : 0;
       break;
 
     case "HB":
     case "DEF":
-      // Half-Back: Disposals: 9.5-30, Marks: 1.8-5.5, Tackles: 1.5-5, Intercepts: 1-4
+      // DEF/HB: Focus on disposals, marks, some intercepts
       const hbDisposals = [9.5, 12.5, 15.5, 18.5, 21.5, 24.5, 27.5, 30];
       const hbMarks = [1.8, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
-      const hbTackles = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+      const hbTackles = [1, 1.5, 1.8, 2, 2.5, 2.8, 3, 3.5];
       const hbIntercepts = [1, 1.2, 1.6, 2, 2.5, 3, 3.5, 4];
       
       disposals = Math.round(getBaseStat(hbDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(hbMarks) * form * playerVariance);
-      tackles = Math.round(getBaseStat(hbTackles) * form * playerVariance);
+      tackles = Math.round(getBaseStat(hbTackles) * form * playerVariance * 0.85);
       intercepts = Math.round(getBaseStat(hbIntercepts) * form * playerVariance);
       goals = Math.random() < 0.03 ? 1 : 0;
+      behinds = goals > 0 && Math.random() < 0.3 ? 1 : 0;
       break;
 
     case "FWD":
-      // Small Forward: Disposals: 5.5-14.5, Marks: 1-4.25, Tackles: 2-5.5, Goals: 0.2-2
+      // Small Forward: Can kick multiple goals but less than KFWD (avg ~1.8 over 10 games)
       const fwdDisposals = [5.5, 7, 8.5, 9.5, 10.5, 12.5, 13.5, 14.5];
       const fwdMarks = [1, 1.5, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25];
       const fwdTackles = [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
-      const fwdGoals = [0.2, 0.4, 0.6, 0.95, 1.15, 1.4, 1.6, 2];
+      const fwdGoals = [0.15, 0.35, 0.55, 0.85, 1.05, 1.3, 1.5, 1.85];
       
       disposals = Math.round(getBaseStat(fwdDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(fwdMarks) * form * playerVariance);
       tackles = Math.round(getBaseStat(fwdTackles) * form * playerVariance);
-      goals = Math.round(getBaseStat(fwdGoals) * form * playerVariance + Math.random() - 0.3);
+      // FWD can have big games (3-5 goals) but often 0-2
+      const fwdBaseGoals = getBaseStat(fwdGoals) * form * playerVariance;
+      goals = Math.round(fwdBaseGoals + (Math.random() * 1.5 - 0.4));
       goals = Math.max(0, goals);
+      behinds = Math.round(Math.random() * 2 + goals * 0.3);
       break;
 
     case "KFWD":
-      // Key Forward: Goals are primary stat, reduced other stats
-      const kfwdDisposals = [6, 7, 8, 9, 9.5, 10, 10.5, 11];
+      // Key Forward: High variance (0-1 goals bad, up to 8-9 career best, avg ~2.7 over 10 games)
+      const kfwdDisposals = [5.5, 6.5, 7.5, 8.5, 9, 9.5, 10, 10.5];
       const kfwdMarks = [1.5, 2, 2.5, 3.5, 4.25, 5, 6, 7.5];
-      const kfwdTackles = [0.8, 0.9, 1, 1.2, 1.4, 1.6, 1.8, 2];
-      const kfwdGoals = [0.5, 0.8, 1.2, 1.7, 2.2, 2.7, 3.2, 4.0];
+      const kfwdTackles = [0.6, 0.7, 0.8, 1, 1.2, 1.4, 1.6, 1.8];
+      const kfwdGoals = [0.4, 0.7, 1.1, 1.6, 2.1, 2.6, 3.1, 3.8];
       
-      disposals = Math.round(getBaseStat(kfwdDisposals) * form * playerVariance * 0.9);
+      disposals = Math.round(getBaseStat(kfwdDisposals) * form * playerVariance * 0.85);
       marks = Math.round(getBaseStat(kfwdMarks) * form * playerVariance);
-      tackles = Math.round(getBaseStat(kfwdTackles) * form * playerVariance);
-      // KFWDs are goal-focused with high variance
-      goals = Math.round(getBaseStat(kfwdGoals) * form * playerVariance + (Math.random() * 2 - 0.5));
-      goals = Math.max(0, goals);
+      tackles = Math.round(getBaseStat(kfwdTackles) * form * playerVariance * 0.8);
+      // KFWD very high variance: can have 0-1 goal games or 6-9 goal bags
+      const kfwdBaseGoals = getBaseStat(kfwdGoals);
+      const goalVariance = form * playerVariance * (0.5 + Math.random() * 1.5);
+      goals = Math.round(kfwdBaseGoals * goalVariance + (Math.random() * 2 - 0.6));
+      goals = Math.max(0, Math.min(9, goals)); // Cap at 9 for career best
+      behinds = Math.round(Math.random() * 3 + goals * 0.4);
       break;
 
     case "RUC":
@@ -412,24 +424,26 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
       break;
 
     case "KDEF":
-      // Key Defender: Disposals: 8-22, Marks: 2-8, Intercepts: 0.8-5, Tackles: 0.5-4
-      const kdefDisposals = [9, 10, 11.5, 13.5, 15, 16, 17.5, 19];
+      // Key Defender: Not many disposals/tackles, but good marks and intercepts
+      const kdefDisposals = [7, 8, 9.5, 11, 12.5, 13.5, 14.5, 15.5];
       const kdefMarks = [2.5, 3, 3.7, 4.2, 4.7, 5.2, 5.7, 7];
       const kdefIntercepts = [1.15, 1.4, 1.7, 2.1, 2.5, 3, 3.5, 4.2];
-      const kdefTackles = [1, 1.4, 1.5, 1.7, 2, 2.4, 2.7, 3.2];
+      const kdefTackles = [0.8, 1, 1.2, 1.4, 1.6, 1.9, 2.2, 2.6];
       
-      disposals = Math.round(getBaseStat(kdefDisposals) * form * playerVariance);
+      disposals = Math.round(getBaseStat(kdefDisposals) * form * playerVariance * 0.9);
       marks = Math.round(getBaseStat(kdefMarks) * form * playerVariance);
       intercepts = Math.round(getBaseStat(kdefIntercepts) * form * playerVariance);
-      tackles = Math.round(getBaseStat(kdefTackles) * form * playerVariance);
+      tackles = Math.round(getBaseStat(kdefTackles) * form * playerVariance * 0.85);
       goals = Math.random() < 0.01 ? 1 : 0;
+      behinds = goals > 0 && Math.random() < 0.2 ? 1 : 0;
       break;
   }
 
-  // Fantasy: 2 disposal, 6 goal, 4 tackle, 3 mark, 4 intercept, 1 hitout
+  // Fantasy: 3 disposal, 6 goal, 1 behind, 4 tackle, 3 mark, 4 intercept, 1 hitout
   const fantasyScore = 
-    disposals * 2 + 
+    disposals * 3 + 
     goals * 6 + 
+    behinds * 1 +
     tackles * 4 + 
     marks * 3 + 
     intercepts * 4 +
@@ -455,6 +469,7 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
     user_id: userId,
     disposals,
     goals,
+    behinds,
     tackles,
     marks,
     impact_score: Math.round(impactScore * 100) / 100,
