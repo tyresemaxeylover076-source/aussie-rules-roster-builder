@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -14,24 +15,58 @@ interface Player {
   overall_rating: number;
 }
 
-interface TeamPlayers {
+interface PositionSlot {
+  position: string;
+  playerId: string | null;
+  adjustedOverall: number | null;
+}
+
+interface TeamLineup {
   teamId: string;
   teamName: string;
   players: Player[];
-  selected: Set<string>;
+  positions: {
+    KDEF: PositionSlot[];
+    DEF: PositionSlot[];
+    MID: PositionSlot[];
+    RUC: PositionSlot[];
+    FWD: PositionSlot[];
+    KFWD: PositionSlot[];
+    INT: PositionSlot[];
+  };
 }
+
+const POSITION_REQUIREMENTS = {
+  KDEF: 3,
+  DEF: 3,
+  MID: 5,
+  RUC: 1,
+  FWD: 3,
+  KFWD: 3,
+  INT: 3,
+};
 
 export default function MatchLineup() {
   const { matchId } = useParams();
   const navigate = useNavigate();
-  const [homeTeam, setHomeTeam] = useState<TeamPlayers | null>(null);
-  const [awayTeam, setAwayTeam] = useState<TeamPlayers | null>(null);
+  const [homeTeam, setHomeTeam] = useState<TeamLineup | null>(null);
+  const [awayTeam, setAwayTeam] = useState<TeamLineup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
 
   useEffect(() => {
     loadMatchAndPlayers();
   }, [matchId]);
+
+  const createEmptyPositions = () => ({
+    KDEF: Array(3).fill(null).map(() => ({ position: "KDEF", playerId: null, adjustedOverall: null })),
+    DEF: Array(3).fill(null).map(() => ({ position: "DEF", playerId: null, adjustedOverall: null })),
+    MID: Array(5).fill(null).map(() => ({ position: "MID", playerId: null, adjustedOverall: null })),
+    RUC: Array(1).fill(null).map(() => ({ position: "RUC", playerId: null, adjustedOverall: null })),
+    FWD: Array(3).fill(null).map(() => ({ position: "FWD", playerId: null, adjustedOverall: null })),
+    KFWD: Array(3).fill(null).map(() => ({ position: "KFWD", playerId: null, adjustedOverall: null })),
+    INT: Array(3).fill(null).map(() => ({ position: "INT", playerId: null, adjustedOverall: null })),
+  });
 
   const loadMatchAndPlayers = async () => {
     if (!matchId) return;
@@ -64,14 +99,14 @@ export default function MatchLineup() {
         teamId: matchData.home_team_id,
         teamName: (matchData.home_team as any).name,
         players: homePlayers || [],
-        selected: new Set(homePlayers?.slice(0, 21).map(p => p.id) || [])
+        positions: createEmptyPositions(),
       });
 
       setAwayTeam({
         teamId: matchData.away_team_id,
         teamName: (matchData.away_team as any).name,
         players: awayPlayers || [],
-        selected: new Set(awayPlayers?.slice(0, 21).map(p => p.id) || [])
+        positions: createEmptyPositions(),
       });
     } catch (error) {
       console.error("Error loading match:", error);
@@ -81,36 +116,118 @@ export default function MatchLineup() {
     }
   };
 
-  const togglePlayer = (teamType: 'home' | 'away', playerId: string) => {
+  const assignPlayer = (teamType: 'home' | 'away', position: string, slotIndex: number, playerId: string) => {
     const team = teamType === 'home' ? homeTeam : awayTeam;
     const setTeam = teamType === 'home' ? setHomeTeam : setAwayTeam;
     
     if (!team) return;
 
-    const newSelected = new Set(team.selected);
-    if (newSelected.has(playerId)) {
-      newSelected.delete(playerId);
-    } else {
-      if (newSelected.size >= 21) {
-        toast.error("Maximum 21 players can be selected");
-        return;
-      }
-      newSelected.add(playerId);
+    const player = team.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Check if player is already assigned elsewhere
+    const isAssigned = Object.entries(team.positions).some(([pos, slots]) => 
+      slots.some(slot => slot.playerId === playerId)
+    );
+
+    if (isAssigned) {
+      toast.error("Player is already assigned to a position");
+      return;
     }
 
-    setTeam({ ...team, selected: newSelected });
+    // Calculate adjusted overall if out of position
+    let adjustedOverall = player.overall_rating;
+    if (player.favorite_position !== position) {
+      // Out of position penalty: -5 to -10 depending on how different
+      const positionGroups = {
+        defense: ['KDEF', 'DEF'],
+        midfield: ['MID', 'RUC'],
+        forward: ['KFWD', 'FWD']
+      };
+      
+      const playerGroup = Object.entries(positionGroups).find(([_, positions]) => 
+        positions.includes(player.favorite_position)
+      )?.[0];
+      
+      const assignedGroup = Object.entries(positionGroups).find(([_, positions]) => 
+        positions.includes(position)
+      )?.[0];
+
+      if (playerGroup !== assignedGroup) {
+        adjustedOverall = player.overall_rating - 8; // Different line
+      } else {
+        adjustedOverall = player.overall_rating - 3; // Same line, different role
+      }
+    }
+
+    const newPositions = { ...team.positions };
+    newPositions[position as keyof typeof newPositions][slotIndex] = {
+      position,
+      playerId,
+      adjustedOverall,
+    };
+
+    setTeam({ ...team, positions: newPositions });
+  };
+
+  const updateAdjustedOverall = (teamType: 'home' | 'away', position: string, slotIndex: number, value: string) => {
+    const team = teamType === 'home' ? homeTeam : awayTeam;
+    const setTeam = teamType === 'home' ? setHomeTeam : setAwayTeam;
+    
+    if (!team) return;
+
+    const overall = parseInt(value);
+    if (isNaN(overall) || overall < 60 || overall > 99) return;
+
+    const newPositions = { ...team.positions };
+    newPositions[position as keyof typeof newPositions][slotIndex].adjustedOverall = overall;
+
+    setTeam({ ...team, positions: newPositions });
+  };
+
+  const clearPosition = (teamType: 'home' | 'away', position: string, slotIndex: number) => {
+    const team = teamType === 'home' ? homeTeam : awayTeam;
+    const setTeam = teamType === 'home' ? setHomeTeam : setAwayTeam;
+    
+    if (!team) return;
+
+    const newPositions = { ...team.positions };
+    newPositions[position as keyof typeof newPositions][slotIndex] = {
+      position,
+      playerId: null,
+      adjustedOverall: null,
+    };
+
+    setTeam({ ...team, positions: newPositions });
+  };
+
+  const getAvailablePlayers = (team: TeamLineup) => {
+    const assignedIds = new Set(
+      Object.values(team.positions)
+        .flat()
+        .map(slot => slot.playerId)
+        .filter(Boolean)
+    );
+    return team.players.filter(p => !assignedIds.has(p.id));
+  };
+
+  const isLineupComplete = (team: TeamLineup | null) => {
+    if (!team) return false;
+    return Object.entries(team.positions).every(([_, slots]) => 
+      slots.every(slot => slot.playerId !== null)
+    );
   };
 
   const simulateMatch = async () => {
     if (!homeTeam || !awayTeam || !matchId) return;
 
-    if (homeTeam.selected.size !== 21) {
-      toast.error("Home team must have exactly 21 players selected");
+    if (!isLineupComplete(homeTeam)) {
+      toast.error("Home team lineup is incomplete");
       return;
     }
 
-    if (awayTeam.selected.size !== 21) {
-      toast.error("Away team must have exactly 21 players selected");
+    if (!isLineupComplete(awayTeam)) {
+      toast.error("Away team lineup is incomplete");
       return;
     }
 
@@ -119,43 +236,55 @@ export default function MatchLineup() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Save lineups
-      const lineupData = [
-        ...Array.from(homeTeam.selected).map((playerId, idx) => ({
+      // Flatten all positions into lineup data
+      const homeLineupData = Object.entries(homeTeam.positions)
+        .flatMap(([pos, slots]) => slots.map((slot, idx) => ({
           match_id: matchId,
           team_id: homeTeam.teamId,
-          player_id: playerId,
+          player_id: slot.playerId!,
           user_id: user.id,
-          is_starting: idx < 18,
-          position: homeTeam.players.find(p => p.id === playerId)?.favorite_position || "MID"
-        })),
-        ...Array.from(awayTeam.selected).map((playerId, idx) => ({
+          is_starting: pos !== 'INT',
+          position: pos
+        })));
+
+      const awayLineupData = Object.entries(awayTeam.positions)
+        .flatMap(([pos, slots]) => slots.map((slot, idx) => ({
           match_id: matchId,
           team_id: awayTeam.teamId,
-          player_id: playerId,
+          player_id: slot.playerId!,
           user_id: user.id,
-          is_starting: idx < 18,
-          position: awayTeam.players.find(p => p.id === playerId)?.favorite_position || "MID"
-        }))
-      ];
+          is_starting: pos !== 'INT',
+          position: pos
+        })));
 
       const { error: lineupError } = await supabase
         .from("match_lineups")
-        .insert(lineupData);
+        .insert([...homeLineupData, ...awayLineupData]);
 
       if (lineupError) throw lineupError;
 
-      // Simulate the match using the same logic
-      const selectedHomePlayers = homeTeam.players.filter(p => homeTeam.selected.has(p.id));
-      const selectedAwayPlayers = awayTeam.players.filter(p => awayTeam.selected.has(p.id));
+      // Get all selected players with their adjusted overalls
+      const homePlayersWithOveralls = Object.entries(homeTeam.positions)
+        .flatMap(([pos, slots]) => slots.map(slot => {
+          const player = homeTeam.players.find(p => p.id === slot.playerId);
+          return player ? { ...player, adjustedOverall: slot.adjustedOverall || player.overall_rating, assignedPosition: pos } : null;
+        }))
+        .filter(Boolean);
+
+      const awayPlayersWithOveralls = Object.entries(awayTeam.positions)
+        .flatMap(([pos, slots]) => slots.map(slot => {
+          const player = awayTeam.players.find(p => p.id === slot.playerId);
+          return player ? { ...player, adjustedOverall: slot.adjustedOverall || player.overall_rating, assignedPosition: pos } : null;
+        }))
+        .filter(Boolean);
 
       // Count RUCs on each team for hitout distribution
-      const homeRucs = selectedHomePlayers.filter(p => p.favorite_position === "RUC");
-      const awayRucs = selectedAwayPlayers.filter(p => p.favorite_position === "RUC");
+      const homeRucs = homePlayersWithOveralls.filter(p => p.assignedPosition === "RUC");
+      const awayRucs = awayPlayersWithOveralls.filter(p => p.assignedPosition === "RUC");
 
       const allStats = [
-        ...selectedHomePlayers.map(p => generatePlayerStats(p, matchId, homeTeam.teamId, user.id, homeRucs, awayRucs)),
-        ...selectedAwayPlayers.map(p => generatePlayerStats(p, matchId, awayTeam.teamId, user.id, homeRucs, awayRucs))
+        ...homePlayersWithOveralls.map(p => generatePlayerStats(p, matchId, homeTeam.teamId, user.id, homeRucs, awayRucs)),
+        ...awayPlayersWithOveralls.map(p => generatePlayerStats(p, matchId, awayTeam.teamId, user.id, homeRucs, awayRucs))
       ];
 
       const { error: statsError } = await supabase
@@ -180,12 +309,12 @@ export default function MatchLineup() {
       const awayBehinds = allStats.filter(s => s.team_id === awayTeam.teamId).reduce((sum, s) => sum + (s.behinds || 0), 0);
       
       // Team overall affects scoring slightly (60-99 range, 75 is average)
-      const homeModifier = 0.95 + ((homeTeamData?.team_overall || 75) - 75) / 150;
-      const awayModifier = 0.95 + ((awayTeamData?.team_overall || 75) - 75) / 150;
+      const homeModifier = 0.85 + ((homeTeamData?.team_overall || 75) - 75) / 150;
+      const awayModifier = 0.85 + ((awayTeamData?.team_overall || 75) - 75) / 150;
       
-      // Random variance for score (0.85-1.15)
-      const homeScoreVariance = 0.85 + Math.random() * 0.3;
-      const awayScoreVariance = 0.85 + Math.random() * 0.3;
+      // Random variance for score (0.80-1.20)
+      const homeScoreVariance = 0.80 + Math.random() * 0.4;
+      const awayScoreVariance = 0.80 + Math.random() * 0.4;
 
       const homeScore = Math.round((homeGoals * 6 + homeBehinds) * homeModifier * homeScoreVariance);
       const awayScore = Math.round((awayGoals * 6 + awayBehinds) * awayModifier * awayScoreVariance);
@@ -219,6 +348,71 @@ export default function MatchLineup() {
     );
   }
 
+  const renderPositionSlots = (team: TeamLineup, teamType: 'home' | 'away', positionKey: string, count: number) => {
+    const availablePlayers = getAvailablePlayers(team);
+    const slots = team.positions[positionKey as keyof typeof team.positions];
+
+    return (
+      <div className="space-y-2">
+        {slots.map((slot, idx) => {
+          const player = slot.playerId ? team.players.find(p => p.id === slot.playerId) : null;
+          const isOutOfPosition = player && player.favorite_position !== positionKey;
+
+          return (
+            <div key={idx} className="flex items-center gap-2">
+              <Select
+                value={slot.playerId || ""}
+                onValueChange={(value) => value ? assignPlayer(teamType, positionKey, idx, value) : clearPosition(teamType, positionKey, idx)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select player">
+                    {player && (
+                      <span className={isOutOfPosition ? "text-orange-500" : ""}>
+                        {player.name} ({player.favorite_position}) - {player.overall_rating} OVR
+                      </span>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePlayers.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.favorite_position}) - {p.overall_rating} OVR
+                    </SelectItem>
+                  ))}
+                  {player && (
+                    <SelectItem value={player.id}>
+                      {player.name} ({player.favorite_position}) - {player.overall_rating} OVR
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {isOutOfPosition && (
+                <Input
+                  type="number"
+                  min="60"
+                  max="99"
+                  value={slot.adjustedOverall || ''}
+                  onChange={(e) => updateAdjustedOverall(teamType, positionKey, idx, e.target.value)}
+                  className="w-20"
+                  placeholder="OVR"
+                />
+              )}
+              {slot.playerId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => clearPosition(teamType, positionKey, idx)}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
       <div className="container mx-auto py-8 px-4">
@@ -229,7 +423,10 @@ export default function MatchLineup() {
             </Button>
             <h1 className="text-4xl font-bold">Select Match Lineup</h1>
           </div>
-          <Button onClick={simulateMatch} disabled={isSimulating}>
+          <Button 
+            onClick={simulateMatch} 
+            disabled={isSimulating || !isLineupComplete(homeTeam) || !isLineupComplete(awayTeam)}
+          >
             {isSimulating ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -241,53 +438,91 @@ export default function MatchLineup() {
           </Button>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-2 gap-8">
           {homeTeam && (
             <Card className="p-6">
-              <h2 className="text-2xl font-bold mb-4">{homeTeam.teamName} (Home)</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Selected: {homeTeam.selected.size}/21 (18 starting + 3 interchange)
-              </p>
-              <div className="space-y-2">
-                {homeTeam.players.map((player) => (
-                  <div key={player.id} className="flex items-center gap-3 p-2 hover:bg-accent/50 rounded">
-                    <Checkbox
-                      checked={homeTeam.selected.has(player.id)}
-                      onCheckedChange={() => togglePlayer('home', player.id)}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{player.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {player.favorite_position} • {player.overall_rating} OVR
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <h2 className="text-2xl font-bold mb-6">{homeTeam.teamName} (Home)</h2>
+              
+              {/* Field Layout */}
+              <div className="space-y-4">
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-blue-600">KEY DEFENDERS (3)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'KDEF', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-blue-500">DEFENDERS (3)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'DEF', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-green-600">MIDFIELDERS (5)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'MID', 5)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-purple-600">RUCK (1)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'RUC', 1)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-orange-500">FORWARDS (3)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'FWD', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-orange-600">KEY FORWARDS (3)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'KFWD', 3)}
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-600">INTERCHANGE (3)</h3>
+                  {renderPositionSlots(homeTeam, 'home', 'INT', 3)}
+                </div>
               </div>
             </Card>
           )}
 
           {awayTeam && (
             <Card className="p-6">
-              <h2 className="text-2xl font-bold mb-4">{awayTeam.teamName} (Away)</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Selected: {awayTeam.selected.size}/21 (18 starting + 3 interchange)
-              </p>
-              <div className="space-y-2">
-                {awayTeam.players.map((player) => (
-                  <div key={player.id} className="flex items-center gap-3 p-2 hover:bg-accent/50 rounded">
-                    <Checkbox
-                      checked={awayTeam.selected.has(player.id)}
-                      onCheckedChange={() => togglePlayer('away', player.id)}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{player.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {player.favorite_position} • {player.overall_rating} OVR
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <h2 className="text-2xl font-bold mb-6">{awayTeam.teamName} (Away)</h2>
+              
+              {/* Field Layout */}
+              <div className="space-y-4">
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-blue-600">KEY DEFENDERS (3)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'KDEF', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-blue-500">DEFENDERS (3)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'DEF', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-green-600">MIDFIELDERS (5)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'MID', 5)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-purple-600">RUCK (1)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'RUC', 1)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-orange-500">FORWARDS (3)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'FWD', 3)}
+                </div>
+
+                <div className="border-b pb-4">
+                  <h3 className="font-semibold mb-2 text-orange-600">KEY FORWARDS (3)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'KFWD', 3)}
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2 text-gray-600">INTERCHANGE (3)</h3>
+                  {renderPositionSlots(awayTeam, 'away', 'INT', 3)}
+                </div>
               </div>
             </Card>
           )}
@@ -297,15 +532,15 @@ export default function MatchLineup() {
   );
 }
 
-function generatePlayerStats(player: any, matchId: string, teamId: string, userId: string, homeRucs: Player[], awayRucs: Player[]) {
-  const position = player.favorite_position;
-  const rating = player.overall_rating;
+function generatePlayerStats(player: any, matchId: string, teamId: string, userId: string, homeRucs: any[], awayRucs: any[]) {
+  const position = player.assignedPosition;
+  const rating = player.adjustedOverall || player.overall_rating;
   
-  // Form variance: 0.55-1.45 (wider range for more unpredictable games)
-  const form = 0.55 + Math.random() * 0.9;
+  // Form variance: 0.5-1.5 (wider range for unpredictable games)
+  const form = 0.5 + Math.random();
   
-  // Individual player variance (makes players in same position have different games)
-  const playerVariance = 0.75 + Math.random() * 0.5;
+  // Individual player variance (makes each game unique)
+  const playerVariance = 0.7 + Math.random() * 0.6;
   
   let disposals = 0;
   let goals = 0;
@@ -315,136 +550,132 @@ function generatePlayerStats(player: any, matchId: string, teamId: string, userI
   let hitouts = 0;
   let intercepts = 0;
 
-  // Helper to get base stat from rating buckets with within-bucket variance
+  // Helper to get base stat from rating buckets with variance
   const getBaseStat = (buckets: number[]) => {
     const idx = Math.min(Math.floor((rating - 60) / 5), 7);
     const base = buckets[idx] || buckets[0];
-    // Add variance within the bucket (±10%)
-    const withinBucketBonus = (rating % 5) * 0.02;
+    const withinBucketBonus = (rating % 5) * 0.015;
     return base * (1 + withinBucketBonus);
   };
 
   switch (position) {
     case "MID":
-      // MID: Focus on disposals and tackles
-      const midDisposals = [9.5, 12.5, 16.5, 19.5, 22.5, 25.5, 28.5, 31];
-      const midMarks = [1.2, 1.8, 2, 2.2, 2.5, 2.8, 3.2, 3.5];
-      const midTackles = [1.5, 2, 2.5, 3.5, 4, 5, 5.5, 6];
-      const midIntercepts = [0.5, 0.6, 0.8, 1, 1.2, 1.5, 1.8, 2];
+      // Reduced disposals significantly - only top players hit 35+
+      const midDisposals = [6, 8, 10.5, 13, 15.5, 18, 20.5, 23];
+      const midMarks = [1, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.2];
+      const midTackles = [1.2, 1.8, 2.3, 2.8, 3.3, 3.8, 4.3, 4.8];
+      const midIntercepts = [0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7];
       
       disposals = Math.round(getBaseStat(midDisposals) * form * playerVariance);
-      marks = Math.round(getBaseStat(midMarks) * form * playerVariance * 0.8);
+      marks = Math.round(getBaseStat(midMarks) * form * playerVariance);
       tackles = Math.round(getBaseStat(midTackles) * form * playerVariance);
-      intercepts = Math.round(getBaseStat(midIntercepts) * form * playerVariance * 0.7);
-      goals = Math.random() < 0.12 ? Math.round(Math.random() * 2) : 0;
-      behinds = goals > 0 && Math.random() < 0.4 ? Math.round(Math.random() * 2) : 0;
+      intercepts = Math.round(getBaseStat(midIntercepts) * form * playerVariance * 0.6);
+      goals = Math.random() < 0.10 ? Math.round(Math.random() * 2) : 0;
+      behinds = goals > 0 && Math.random() < 0.35 ? Math.round(Math.random() * 2) : 0;
       break;
 
     case "HB":
     case "DEF":
-      // DEF/HB: Focus on disposals, marks, some intercepts
-      const hbDisposals = [9.5, 12.5, 15.5, 18.5, 21.5, 24.5, 27.5, 30];
-      const hbMarks = [1.8, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
-      const hbTackles = [1, 1.5, 1.8, 2, 2.5, 2.8, 3, 3.5];
-      const hbIntercepts = [1, 1.2, 1.6, 2, 2.5, 3, 3.5, 4];
+      const hbDisposals = [6, 8, 10, 12, 14.5, 17, 19.5, 22];
+      const hbMarks = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+      const hbTackles = [0.8, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3];
+      const hbIntercepts = [0.8, 1.2, 1.6, 2, 2.4, 2.8, 3.2, 3.6];
       
       disposals = Math.round(getBaseStat(hbDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(hbMarks) * form * playerVariance);
-      tackles = Math.round(getBaseStat(hbTackles) * form * playerVariance * 0.85);
+      tackles = Math.round(getBaseStat(hbTackles) * form * playerVariance);
       intercepts = Math.round(getBaseStat(hbIntercepts) * form * playerVariance);
-      goals = Math.random() < 0.03 ? 1 : 0;
-      behinds = goals > 0 && Math.random() < 0.3 ? 1 : 0;
+      goals = Math.random() < 0.02 ? 1 : 0;
+      behinds = goals > 0 && Math.random() < 0.25 ? 1 : 0;
       break;
 
     case "FWD":
-      // Small Forward: Can kick multiple goals but less than KFWD (avg ~1.8 over 10 games)
-      const fwdDisposals = [5.5, 7, 8.5, 9.5, 10.5, 12.5, 13.5, 14.5];
-      const fwdMarks = [1, 1.5, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25];
-      const fwdTackles = [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
-      const fwdGoals = [0.15, 0.35, 0.55, 0.85, 1.05, 1.3, 1.5, 1.85];
+      const fwdDisposals = [4, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5];
+      const fwdMarks = [0.8, 1.2, 1.5, 1.9, 2.3, 2.7, 3.1, 3.6];
+      const fwdTackles = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+      const fwdGoals = [0.12, 0.28, 0.45, 0.65, 0.85, 1.05, 1.25, 1.5];
       
       disposals = Math.round(getBaseStat(fwdDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(fwdMarks) * form * playerVariance);
       tackles = Math.round(getBaseStat(fwdTackles) * form * playerVariance);
-      // FWD can have big games (3-5 goals) but often 0-2
+      // FWD can have big games (3-5 goals) but often 0-2, average ~1.8 over 10 games
       const fwdBaseGoals = getBaseStat(fwdGoals) * form * playerVariance;
-      goals = Math.round(fwdBaseGoals + (Math.random() * 1.5 - 0.4));
+      goals = Math.round(fwdBaseGoals + (Math.random() * 2 - 0.5));
       goals = Math.max(0, goals);
       behinds = Math.round(Math.random() * 2 + goals * 0.3);
       break;
 
     case "KFWD":
-      // Key Forward: High variance (0-1 goals bad, up to 8-9 career best, avg ~2.7 over 10 games)
-      const kfwdDisposals = [5.5, 6.5, 7.5, 8.5, 9, 9.5, 10, 10.5];
-      const kfwdMarks = [1.5, 2, 2.5, 3.5, 4.25, 5, 6, 7.5];
-      const kfwdTackles = [0.6, 0.7, 0.8, 1, 1.2, 1.4, 1.6, 1.8];
-      const kfwdGoals = [0.4, 0.7, 1.1, 1.6, 2.1, 2.6, 3.1, 3.8];
+      const kfwdDisposals = [4, 5, 5.5, 6, 6.5, 7, 7.5, 8];
+      const kfwdMarks = [1.2, 1.8, 2.3, 2.9, 3.5, 4.2, 5, 6];
+      const kfwdTackles = [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.3, 1.5];
+      const kfwdGoals = [0.3, 0.55, 0.85, 1.2, 1.6, 2, 2.4, 2.9];
       
-      disposals = Math.round(getBaseStat(kfwdDisposals) * form * playerVariance * 0.85);
+      disposals = Math.round(getBaseStat(kfwdDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(kfwdMarks) * form * playerVariance);
-      tackles = Math.round(getBaseStat(kfwdTackles) * form * playerVariance * 0.8);
-      // KFWD very high variance: can have 0-1 goal games or 6-9 goal bags
+      tackles = Math.round(getBaseStat(kfwdTackles) * form * playerVariance);
+      // KFWD high variance: 0-1 goal bad games, 2-4 average, 5-9 good to career best
+      // Average ~2.7 over 10 games, but can be outscored by FWDs in any given game
       const kfwdBaseGoals = getBaseStat(kfwdGoals);
-      const goalVariance = form * playerVariance * (0.5 + Math.random() * 1.5);
-      goals = Math.round(kfwdBaseGoals * goalVariance + (Math.random() * 2 - 0.6));
-      goals = Math.max(0, Math.min(9, goals)); // Cap at 9 for career best
-      behinds = Math.round(Math.random() * 3 + goals * 0.4);
+      const goalVariance = form * playerVariance * (0.4 + Math.random() * 1.6);
+      goals = Math.round(kfwdBaseGoals * goalVariance + (Math.random() * 2.5 - 0.7));
+      goals = Math.max(0, Math.min(9, goals));
+      behinds = Math.round(Math.random() * 3 + goals * 0.35);
       break;
 
     case "RUC":
-      // Ruck: Hitouts based on opposition, Disposals: 4-14, Marks: 0.8-5
-      const rucDisposals = [5, 6, 7, 8, 9, 10, 11.5, 12.5];
-      const rucMarks = [1, 1.5, 1.8, 2.2, 2.7, 3.2, 3.7, 4.2];
+      const rucDisposals = [4, 5, 6, 7, 8, 9, 10, 11];
+      const rucMarks = [0.8, 1.2, 1.5, 1.9, 2.3, 2.7, 3.1, 3.6];
       
       const opposingRucs = homeRucs.some(r => r.id === player.id) ? awayRucs : homeRucs;
       
       if (opposingRucs.length > 0) {
-        // Two RUCs competing
-        const opposingRating = opposingRucs[0].overall_rating;
+        const opposingRating = opposingRucs[0].adjustedOverall || opposingRucs[0].overall_rating;
         const ratingDiff = rating - opposingRating;
         
-        // Base hitouts by rating bucket: 12.5, 17.5, 22.5, 27, 31.5, 35, 40, 47.5
-        const baseHitouts = [12.5, 17.5, 22.5, 27, 31.5, 35, 40, 47.5];
+        const baseHitouts = [10, 14, 18, 22, 26, 30, 35, 42];
         const myBase = getBaseStat(baseHitouts);
         
-        // Adjust based on opposition (if opponent is better, you get fewer)
-        hitouts = Math.round(myBase + (ratingDiff * 0.3) + (Math.random() * 6 - 3));
-        hitouts = Math.max(8, Math.min(55, hitouts));
+        hitouts = Math.round(myBase + (ratingDiff * 0.25) + (Math.random() * 6 - 3));
+        hitouts = Math.max(6, Math.min(52, hitouts));
       } else {
-        // Solo RUC dominates
-        const soloHitouts = [12, 17, 22, 27, 31, 35, 40, 47];
-        hitouts = Math.round(getBaseStat(soloHitouts) * 1.3 + Math.random() * 8);
-        hitouts = Math.max(30, hitouts);
+        const soloHitouts = [10, 14, 18, 22, 26, 30, 35, 42];
+        hitouts = Math.round(getBaseStat(soloHitouts) * 1.3 + Math.random() * 7);
+        hitouts = Math.max(25, hitouts);
       }
       
       disposals = Math.round(getBaseStat(rucDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(rucMarks) * form * playerVariance);
-      tackles = Math.round((1 + rating / 50) * form * playerVariance);
-      goals = Math.random() < 0.08 ? 1 : 0;
+      tackles = Math.round((0.8 + rating / 60) * form * playerVariance);
+      goals = Math.random() < 0.06 ? 1 : 0;
       break;
 
     case "KDEF":
-      // Key Defender: Not many disposals/tackles, but good marks and intercepts
-      const kdefDisposals = [7, 8, 9.5, 11, 12.5, 13.5, 14.5, 15.5];
-      const kdefMarks = [2.5, 3, 3.7, 4.2, 4.7, 5.2, 5.7, 7];
-      const kdefIntercepts = [1.15, 1.4, 1.7, 2.1, 2.5, 3, 3.5, 4.2];
-      const kdefTackles = [0.8, 1, 1.2, 1.4, 1.6, 1.9, 2.2, 2.6];
+      const kdefDisposals = [5, 6, 7, 8, 9.5, 10.5, 11.5, 12.5];
+      const kdefMarks = [2, 2.5, 3, 3.5, 4, 4.5, 5, 6];
+      const kdefIntercepts = [0.9, 1.2, 1.5, 1.8, 2.2, 2.6, 3, 3.5];
+      const kdefTackles = [0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.9, 2.2];
       
-      disposals = Math.round(getBaseStat(kdefDisposals) * form * playerVariance * 0.9);
+      disposals = Math.round(getBaseStat(kdefDisposals) * form * playerVariance);
       marks = Math.round(getBaseStat(kdefMarks) * form * playerVariance);
       intercepts = Math.round(getBaseStat(kdefIntercepts) * form * playerVariance);
-      tackles = Math.round(getBaseStat(kdefTackles) * form * playerVariance * 0.85);
+      tackles = Math.round(getBaseStat(kdefTackles) * form * playerVariance);
       goals = Math.random() < 0.01 ? 1 : 0;
       behinds = goals > 0 && Math.random() < 0.2 ? 1 : 0;
       break;
+
+    case "INT":
+      // Interchange players based on their favorite position
+      const intPlayer = { ...player, assignedPosition: player.favorite_position };
+      return generatePlayerStats(intPlayer, matchId, teamId, userId, homeRucs, awayRucs);
   }
 
-  // Fantasy: 3 disposal, 6 goal, 1 behind, 4 tackle, 3 mark, 4 intercept, 1 hitout
+  // Fantasy: 2 disposal, 6 goal, 1 behind, 3 tackle, 3 mark, 4 intercept, 1 hitout
   const fantasyScore = 
-    disposals * 3 + 
+    disposals * 2 + 
     goals * 6 + 
     behinds * 1 +
-    tackles * 4 + 
+    tackles * 3 + 
     marks * 3 + 
     intercepts * 4 +
     hitouts * 1;
